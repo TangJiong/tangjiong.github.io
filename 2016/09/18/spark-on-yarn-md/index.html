@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    
+    <title>Spark on YARN集群环境搭建 | TangJiong&#39;s Note</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    
+    
+      <link rel="icon" href="/favicon.png">
+    
+
+    <link rel="stylesheet" href="/css/style.css">
+
+    <link rel="stylesheet" href="/js/google-code-prettify/tomorrow-night-eighties.min.css">
+
+  </head>
+
+  <body>
+
+<header>
+	<a id="logo" href="/" title="TangJiong&#39;s Note">
+	<img src="/favicon.png" alt="TangJiong&#39;s Note"></a>
+	
+	
+		<!--搜索栏-->
+		<i class="js-toggle-search iconfont icon-search"></i>
+
+
+<form class="js-search search-form search-form--modal" method="get" action="http://gushi.li" role="search">
+	<div class="search-form__inner">
+		<div>
+			<i class="iconfont icon-search"></i>
+			<input class="text-input" placeholder="点此输入关键字..." type="search">
+		</div>
+	</div>
+</form>
+	
+
+	
+		<!--侧边导航栏-->
+		<a id="nav-toggle" href="#"><span></span></a>
+
+<nav>
+	<div class="menu-top-container">
+		<ul id="menu-top" class="menu">
+			
+				
+				<li class="current-menu-item">
+					<a href="/" target="">首页</a>
+				</li>
+			
+				
+				<li class="current-menu-item">
+					<a href="/archives" target="">归档</a>
+				</li>
+			
+		</ul>
+	</div>
+</nav>
+	
+
+</header>
+<div class="m-header ">
+	<section id="hero1" class="hero">
+		<div class="inner">
+		</div>
+	</section>
+	
+		<figure class="top-image" data-enable=true></figure>
+	
+</div>
+
+<!--文章列表-->
+<div class="wrapper">
+  
+    <!--文章-->
+<article>
+	
+  
+    <h1 class="post-title" itemprop="name">
+      Spark on YARN集群环境搭建
+    </h1>
+  
+
+	<div class='post-body mb'>
+		<p>Spark 官方提供了三种集群部署方案： Standalone, Mesos, YARN。其中 Standalone 最为方便，官网有<a href="http://spark.apache.org/docs/latest/spark-standalone.html" target="_blank" rel="external">搭建教程</a>，本文主要讲述结合 YARN 的部署方案。关于YARN和Hadoop的介绍可以看看这个 <a href="http://www.ibm.com/developerworks/cn/data/library/bd-yarn-intro/#ibm-pcon" target="_blank" rel="external">YARN 简介</a></p>
+<h1 id="环境准备"><a href="#环境准备" class="headerlink" title="环境准备"></a>环境准备</h1><ul>
+<li>linux 192.168.0.1（主） 192.168.0.2（从） 192.168.0.3（从）</li>
+<li>JDK 1.8 <a href="http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html" target="_blank" rel="external">官网下载</a></li>
+<li>Scala 2.11.8 <a href="http://scala-lang.org/download/all.html" target="_blank" rel="external">官网下载</a></li>
+<li>Hadoop 2.7.3 <a href="http://hadoop.apache.org/releases.html" target="_blank" rel="external">官网下载</a></li>
+<li>Spark 2.0.0 <a href="http://spark.apache.org/downloads.html" target="_blank" rel="external">官网下载</a></li>
+</ul>
+<p>注：下面的操作都是以root的角色操作的，如果不是root用户大部分命令都需要sudo</p>
+<h1 id="1-Server环境准备"><a href="#1-Server环境准备" class="headerlink" title="1.Server环境准备"></a>1.Server环境准备</h1><h2 id="1-1-修改主机名"><a href="#1-1-修改主机名" class="headerlink" title="1.1 修改主机名"></a>1.1 修改主机名</h2><p>修改主机名的目的一是为了方便后续管理，一眼能看出每台机器的角色；二是Spark和Hadoop很多配置都是使用master、slave这样的hostname，方便配置文件的重用。。<br>这里搭建的是1个master，2个slave的集群方案，主机名分别为master、slave1、slave2。修改主机名的操作：</p>
+<pre><code class="shell">vim /etc/sysconfig/network #修改HOSTNAME=$your_host_name
+sysctl kernel.hostname = $your_host_name #使改变立即生效
+# 或者使用
+# echo $your_host_name  &gt; /proc/sys/kernel/hostname
+</code></pre>
+<p>两种方式修改后当前会话的hostname还是不会变化，exit后再reconnect一下就好了，这部分更详细的解释可以<a href="http://www.cnblogs.com/kerrycode/p/3595724.html" target="_blank" rel="external">看这里</a></p>
+<h2 id="1-2-配置hosts"><a href="#1-2-配置hosts" class="headerlink" title="1.2 配置hosts"></a>1.2 配置hosts</h2><p>在每台主机上修改host文件，目的同上</p>
+<pre><code class="shell">vim /etc/hosts
+192.168.0.1 master
+192.168.0.2 slave1
+192.168.0.3 slave2
+</code></pre>
+<p>配置完之后相互ping一下看是否生效</p>
+<h2 id="1-3-SSH免密码登录"><a href="#1-3-SSH免密码登录" class="headerlink" title="1.3 SSH免密码登录"></a>1.3 SSH免密码登录</h2><p>后续的操作经常会用到在各个节点之间分发配置文件，配置免密登录可以更方便切换到不同的节点。<br>在所有机器上都生成私钥和公钥</p>
+<pre><code class="shell">ssh-keygen -t rsa   #一路回车
+</code></pre>
+<p>需要让机器间都能相互访问，就把每个机子上的<code>id_rsa.pub</code>发给master节点，传输公钥可以用scp来传输。</p>
+<pre><code class="shell"># 在slave1上执行，将slave1的id_rsa.pub发给master
+scp ~/.ssh/id_rsa.pub root@master:~/.ssh/id_rsa.pub.slave1
+</code></pre>
+<p>在master上，将所有公钥加到用于认证的公钥文件<code>authorized_keys</code>中</p>
+<pre><code class="shell">cat ~/.ssh/id_rsa.pub* &gt;&gt; ~/.ssh/authorized_keys
+</code></pre>
+<p>将公钥文件authorized_keys分发给每台slave</p>
+<pre><code class="shell"># 发给slave1
+scp ~/.ssh/authorized_keys root@slave1:~/.ssh/
+# 发给slave2
+scp ~/.ssh/authorized_keys root@slave2:~/.ssh/
+</code></pre>
+<p>在每台机器上验证SSH无密码通信</p>
+<pre><code class="shell">ssh master
+ssh slave1
+ssh slave2
+</code></pre>
+<p>如果登陆测试不成功，则可能需要修改文件authorized_keys的权限（权限的设置非常重要，因为不安全的设置安全设置,会让你不能使用RSA功能 ）</p>
+<pre><code class="shell">chmod 600 ~/.ssh/authorized_keys
+</code></pre>
+<h1 id="2-安装配置Java"><a href="#2-安装配置Java" class="headerlink" title="2.安装配置Java"></a>2.安装配置Java</h1><p>（如果已有Java环境，可以跳过这步）<br>从官网下载正确的版本，然后解压</p>
+<pre><code class="shell">tar -zvxf jdk-8u91-linux-i586.tar.gz
+</code></pre>
+<p>修改环境变量（也可以解压完scala后一起修改，省事）</p>
+<pre><code class="shell">vim /etc/profile
+
+# 添加以下内容
+# environment for spark
+export JAVA_HOME=/data2/java/jdk1.8.0_91
+
+export PATH=$JAVA_HOME/bin::$PATH
+export CLASSPATH=$CLASSPATH:.:$JAVA_HOME/lib
+</code></pre>
+<p>使环境变量生效</p>
+<pre><code class="shell">source /etc/profile
+</code></pre>
+<h1 id="3-安装配置Scala"><a href="#3-安装配置Scala" class="headerlink" title="3.安装配置Scala"></a>3.安装配置Scala</h1><p>下载，解压</p>
+<pre><code class="shell">tar -zvxf scala-2.11.8.tgz
+</code></pre>
+<p>为了方便管理，可以将java、scala、spark等软件包解压在同一个目录下。这里在/data2下建立了java、scala、spark、hadoop的目录，用来放解压后的文件。</p>
+<p><code>vim /etc/profile</code>修改环境变量，并 <code>source /etc/profile</code>生效<br>可以使用<code>scala -version</code>查看是否配置成功</p>
+<h1 id="4-安装配置Hadoop-YARN"><a href="#4-安装配置Hadoop-YARN" class="headerlink" title="4.安装配置Hadoop YARN"></a>4.安装配置Hadoop YARN</h1><h2 id="4-1下载解压"><a href="#4-1下载解压" class="headerlink" title="4.1下载解压"></a>4.1下载解压</h2><pre><code class="shell">tar -zvxf hadoop-2.7.3.tar.gz
+</code></pre>
+<h2 id="4-2配置Hadoop"><a href="#4-2配置Hadoop" class="headerlink" title="4.2配置Hadoop"></a>4.2配置Hadoop</h2><p><code>cd /data2/hadoop/hadoop-2.7.3/etc/hadoop</code>进入配置目录，需要配置有以下7个文件：hadoop-env.sh，yarn-env.sh，slaves，core-site.xml，hdfs-site.xml，maprd-site.xml，yarn-site.xml</p>
+<ul>
+<li><p>在<code>hadoop-env.sh</code>中配置JAVA_HOME</p>
+<pre><code class="shell"># The java implementation to use.
+export JAVA_HOME=/home/spark/workspace/jdk1.7.0_75
+</code></pre>
+<p>hadoop-env.sh记录脚本要用的环境变量，以运行Hadoop</p>
+</li>
+<li><p>在<code>yarn-env.sh</code>中配置JAVA_HOME</p>
+<pre><code class="shell"># some Java parameters
+export JAVA_HOME=/home/spark/workspace/jdk1.7.0_75
+</code></pre>
+</li>
+<li><p>在<code>slaves</code>中配置slave节点的ip或者host，纯文本文件，没有的话创建一个，一行表示一个节点</p>
+<pre><code class="shell">slave1
+slave2
+</code></pre>
+</li>
+<li><p>修改<code>core-site.xml</code></p>
+<pre><code class="xml">&lt;configuration&gt;
+  &lt;property&gt;
+      &lt;name&gt;fs.defaultFS&lt;/name&gt;
+      &lt;value&gt;hdfs://master:9000/&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+       &lt;name&gt;hadoop.tmp.dir&lt;/name&gt;
+       &lt;value&gt;file:/data2/hadoop/hadoop-2.7.3/tmp&lt;/value&gt;
+  &lt;/property&gt;
+&lt;/configuration&gt;
+</code></pre>
+<p>Hadoop Core的配置项，例如HDFS和MapReduce常用的IO设置等。</p>
+</li>
+<li><p>修改<code>hdfs-site.xml</code></p>
+<pre><code class="xml">&lt;configuration&gt;
+  &lt;property&gt;
+      &lt;name&gt;dfs.namenode.secondary.http-address&lt;/name&gt;
+      &lt;value&gt;master:9001&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;dfs.namenode.name.dir&lt;/name&gt;
+      &lt;value&gt;file:/data2/hadoop/hadoop-2.7.3/dfs/name&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;dfs.datanode.data.dir&lt;/name&gt;
+      &lt;value&gt;file:/data2/hadoop/hadoop-2.7.3/dfs/data&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;dfs.replication&lt;/name&gt;
+      &lt;value&gt;3&lt;/value&gt;
+  &lt;/property&gt;
+&lt;/configuration&gt;
+</code></pre>
+<p>Hadoop守护进程的配置项，包括namenode、辅助namenode和datanode等</p>
+</li>
+<li><p>修改<code>yarn-site.xml</code></p>
+<pre><code class="xml">&lt;configuration&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.nodemanager.aux-services&lt;/name&gt;
+      &lt;value&gt;mapreduce_shuffle&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.nodemanager.aux-services.mapreduce.shuffle.class&lt;/name&gt;
+      &lt;value&gt;org.apache.hadoop.mapred.ShuffleHandler&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.resourcemanager.address&lt;/name&gt;
+      &lt;value&gt;master:8032&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.resourcemanager.scheduler.address&lt;/name&gt;
+      &lt;value&gt;master:8030&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.resourcemanager.resource-tracker.address&lt;/name&gt;
+      &lt;value&gt;master:8035&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.resourcemanager.admin.address&lt;/name&gt;
+      &lt;value&gt;master:8033&lt;/value&gt;
+  &lt;/property&gt;
+  &lt;property&gt;
+      &lt;name&gt;yarn.resourcemanager.webapp.address&lt;/name&gt;
+      &lt;value&gt;master:8088&lt;/value&gt;
+  &lt;/property&gt;
+&lt;/configuration&gt;
+</code></pre>
+</li>
+<li><p>将配置好的hadoop文件夹分发给所有slaves吧</p>
+<pre><code class="shell">scp -r ~/data2/hadoop root@slave1:/data2/
+</code></pre>
+<p>后面的spark配置也一样，可以先在master上配好后再分发到slave上</p>
+</li>
+</ul>
+<h2 id="4-3-启动Hadoop"><a href="#4-3-启动Hadoop" class="headerlink" title="4.3.启动Hadoop"></a>4.3.启动Hadoop</h2><p>在 master 上执行以下操作，就可以启动 hadoop 了。</p>
+<pre><code class="shell">cd ~/data2/hadoop/hadoop-2.7.3     #进入hadoop目录
+bin/hadoop namenode -format     #格式化namenode，这个只在初始化的时候执行就好，后面再启动不需要执行
+sbin/start-dfs.sh               #启动dfs
+sbin/start-yarn.sh              #启动yarn
+</code></pre>
+<h2 id="4-4验证-Hadoop-是否安装成功"><a href="#4-4验证-Hadoop-是否安装成功" class="headerlink" title="4.4验证 Hadoop 是否安装成功"></a>4.4验证 Hadoop 是否安装成功</h2><p>可以通过jps命令查看各个节点启动的进程是否正常。在 master 上应该有以下几个进程：</p>
+<pre><code class="shell">$ jps  #run on master
+3407 SecondaryNameNode
+3218 NameNode
+3552 ResourceManager
+3910 Jps
+</code></pre>
+<p>在每个slave上应该有以下几个进程：</p>
+<pre><code class="shell">$ jps   #run on slaves
+2072 NodeManager
+2213 Jps
+1962 DataNode
+</code></pre>
+<p>在浏览器中输入<a href="http://192.168.0.1:8088，应该有" target="_blank" rel="external">http://192.168.0.1:8088，应该有</a> hadoop 的管理界面出来了，并能看到 slave1 和 slave2 节点。</p>
+<h1 id="5-Spark安装"><a href="#5-Spark安装" class="headerlink" title="5 Spark安装"></a>5 Spark安装</h1><h2 id="5-1下载解压"><a href="#5-1下载解压" class="headerlink" title="5.1下载解压"></a>5.1下载解压</h2><pre><code class="shell">tar -zvxf spark-2.0.0-bin-hadoop2.7.tgz
+</code></pre>
+<h2 id="5-2配置Spark"><a href="#5-2配置Spark" class="headerlink" title="5.2配置Spark"></a>5.2配置Spark</h2><pre><code class="shell">cd /data2/spark/spark-2.0.0-bin-hadoop2.7/conf    #进入spark配置目录
+cp spark-env.sh.template spark-env.sh   #从配置模板复制
+vi spark-env.sh     #添加配置内容
+</code></pre>
+<p>在spark-env.sh末尾添加以下内容</p>
+<pre><code class="shell">export SCALA_HOME=/home/spark/workspace/scala-2.10.4
+export JAVA_HOME=/home/spark/workspace/jdk1.7.0_75
+export HADOOP_HOME=/home/spark/workspace/hadoop-2.6.0
+export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+SPARK_MASTER_IP=master
+SPARK_LOCAL_DIRS=/home/spark/workspace/spark-1.3.0
+SPARK_DRIVER_MEMORY=1G
+</code></pre>
+<p>注：在设置Worker进程的CPU个数和内存大小，要注意机器的实际硬件条件，如果配置的超过当前Worker节点的硬件条件，Worker进程会启动失败。</p>
+<p><code>vi slaves</code>在slaves文件下填上slave主机名：</p>
+<pre><code class="shell">slave1
+slave2
+</code></pre>
+<p>将配置好的spark文件夹分发给所有slaves吧</p>
+<pre><code class="shell">scp -r /data2/spark root@slave1:/data2/
+</code></pre>
+<h2 id="5-3启动Spark"><a href="#5-3启动Spark" class="headerlink" title="5.3启动Spark"></a>5.3启动Spark</h2><pre><code class="shell">sbin/start-all.sh
+</code></pre>
+<h2 id="5-4验证-Spark-是否安装成功"><a href="#5-4验证-Spark-是否安装成功" class="headerlink" title="5.4验证 Spark 是否安装成功"></a>5.4验证 Spark 是否安装成功</h2><p>用jps检查，在 master 上应该有以下几个进程：</p>
+<pre><code class="shell">$ jps
+7949 Jps
+7328 SecondaryNameNode
+7805 Master
+7137 NameNode
+7475 ResourceManager
+</code></pre>
+<p>在 slave 上应该有以下几个进程：</p>
+<pre><code class="shell">$ jps
+3132 DataNode
+3759 Worker
+3858 Jps
+3231 NodeManager
+</code></pre>
+<p>进入Spark的Web管理页面：<a href="http://192.168.0.1:8080" target="_blank" rel="external">http://192.168.0.1:8080</a></p>
+<h2 id="5-5运行示例"><a href="#5-5运行示例" class="headerlink" title="5.5运行示例"></a>5.5运行示例</h2><pre><code class="shell">#本地模式两线程运行
+./bin/run-example SparkPi 10 --master local[2]
+
+#Spark Standalone 集群模式运行
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master spark://master:7077 \
+  lib/spark-examples-1.3.0-hadoop2.4.0.jar \
+  100
+
+#Spark on YARN 集群上 yarn-cluster 模式运行
+./bin/spark-submit \
+    --class org.apache.spark.examples.SparkPi \
+    --master yarn-cluster \  # can also be `yarn-client`
+    lib/spark-examples*.jar \
+    10
+</code></pre>
+<p>注意 Spark on YARN 支持两种运行模式，分别为yarn-cluster和yarn-client，具体的区别可以看<a href="https://www.iteblog.com/archives/1223" target="_blank" rel="external">这篇博文</a>，从广义上讲，yarn-cluster适用于生产环境；而yarn-client适用于交互和调试，也就是希望快速地看到application的输出。</p>
+
+	</div>
+	<div class="meta split">
+		
+			<span>本文总阅读量 <span id="busuanzi_value_page_pv"></span> 次</span>
+		
+		<time class="post-date" datetime="2016-09-18T14:23:27.000Z" itemprop="datePublished">2016-09-18</time>
+	</div>
+</article>
+
+<!--评论-->
+
+	
+<div class="ds-thread" data-thread-key="spark-on-yarn-md" data-title="Spark on YARN集群环境搭建" data-url="http://tangjiong.github.io/2016/09/18/spark-on-yarn-md/"></div>
+<script type="text/javascript">
+
+var duoshuoQuery = {short_name:"yumemor"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0]
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+	})();
+</script>
+
+
+  
+</div>
+
+
+  <svg id="bigTriangleColor" width="100%" height="40" viewBox="0 0 100 102" preserveAspectRatio="none">
+    <path d="M0 0 L50 100 L100 0 Z"></path>
+  </svg>
+
+  
+
+
+  <div class="wrapper"></div>
+
+
+
+
+
+<div class="fat-footer">
+	<div class="wrapper">
+		<div class="layout layout--center">
+			<div class="layout__item palm-mb">
+				<div class="media">
+					<img class="headimg" src='http://7xid5q.com1.z0.glb.clouddn.com/avatar.jpeg' alt='唐炯'>
+					<div class="media__body">
+						<h4>TangJiong&#39;s Note</h4>
+						<p class='site-description'>个人博客，编程笔记，一半是代码，一半是生活</p>
+					</div>
+				</div>
+				<div class="author-contact">
+					<ul>
+						
+							
+							<li>
+				        		<a href="http://weibo.com/u/1882741134" target="_blank">
+				        			
+				        				<i class="iconfont icon-weibo"></i>
+				        			
+				        		</a>
+				        	</li>
+						
+							
+							<li>
+				        		<a href="https://github.com/TangJiong" target="_blank">
+				        			
+				        				<i class="iconfont icon-github"></i>
+				        			
+				        		</a>
+				        	</li>
+						
+							
+							<li>
+				        		<a href="https://www.zhihu.com/people/tang-jiong-98" target="_blank">
+				        			
+										<i class="iconfont icon-zhihu"></i>
+				        			
+				        		</a>
+				        	</li>
+						
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<footer class="footer" role="contentinfo">
+	<div class="wrapper wrapper--wide split split--responsive">
+		
+			<span>本站总访问量 <span id="busuanzi_value_site_pv"></span> 次, 访客数 <span id="busuanzi_value_site_uv"></span> 人次</span>
+		
+		<span>Theme by <a href="http://github.com/yumemor">Yumemor</a>. Powered by <a href="http://hexo.io">Hexo</a></span>
+	</div>
+</footer>
+
+	<!-－这里导入了 lib.js 里面涵盖了 jQuery 等框架 所以注释掉-->
+	<!--<script src="http://lib.sinaapp.com/js/jquery/2.0/jquery.min.js"></script>-->
+	<script src="/js/lib.js"></script>
+	<script src="/js/google-code-prettify/prettify.js"></script>
+	<script src="/js/module.js"></script>
+	<script src="/js/script.js"></script>
+	
+		<script async src="http://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	
+	<script type='text/javascript'>
+		//代码高亮
+		$(document).ready(function(){
+	 		$('pre').addClass('prettyprint linenums').attr('style', 'overflow:auto;');
+   			prettyPrint();
+		});
+	</script>
+	</body>
+</html>
