@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    
+    <title>Cassandra集群环境搭建 | TangJiong&#39;s Note</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    
+    
+      <link rel="icon" href="/favicon.png">
+    
+
+    <link rel="stylesheet" href="/css/style.css">
+
+    <link rel="stylesheet" href="/js/google-code-prettify/tomorrow-night-eighties.min.css">
+
+  </head>
+
+  <body>
+
+<header>
+	<a id="logo" href="/" title="TangJiong&#39;s Note">
+	<img src="/favicon.png" alt="TangJiong&#39;s Note"></a>
+	
+	
+		<!--搜索栏-->
+		<i class="js-toggle-search iconfont icon-search"></i>
+
+
+<form class="js-search search-form search-form--modal" method="get" action="http://gushi.li" role="search">
+	<div class="search-form__inner">
+		<div>
+			<i class="iconfont icon-search"></i>
+			<input class="text-input" placeholder="点此输入关键字..." type="search">
+		</div>
+	</div>
+</form>
+	
+
+	
+		<!--侧边导航栏-->
+		<a id="nav-toggle" href="#"><span></span></a>
+
+<nav>
+	<div class="menu-top-container">
+		<ul id="menu-top" class="menu">
+			
+				
+				<li class="current-menu-item">
+					<a href="/" target="">首页</a>
+				</li>
+			
+				
+				<li class="current-menu-item">
+					<a href="/archives" target="">归档</a>
+				</li>
+			
+		</ul>
+	</div>
+</nav>
+	
+
+</header>
+<div class="m-header ">
+	<section id="hero1" class="hero">
+		<div class="inner">
+		</div>
+	</section>
+	
+		<figure class="top-image" data-enable=true></figure>
+	
+</div>
+
+<!--文章列表-->
+<div class="wrapper">
+  
+    <!--文章-->
+<article>
+	
+  
+    <h1 class="post-title" itemprop="name">
+      Cassandra集群环境搭建
+    </h1>
+  
+
+	<div class='post-body mb'>
+		<p>Cassandra是去中心化的集群架构，所以没有master节点的概念，但是会有一个seed节点来收集其他节点的信息</p>
+<h1 id="环境准备"><a href="#环境准备" class="headerlink" title="环境准备"></a>环境准备</h1><ul>
+<li>tlinux 192.168.0.1（seed） 192.168.0.2 192.168.0.3</li>
+<li>JDK 1.8</li>
+<li>cassandra 3.7 <a href="http://cassandra.apache.org/download/" target="_blank" rel="external">官网下载</a></li>
+</ul>
+<h1 id="1-Server环境准备"><a href="#1-Server环境准备" class="headerlink" title="1.Server环境准备"></a>1.Server环境准备</h1><p>之前配置Spark时已经配置好server的基础环境了，如需配置hostname、SSH免密登录可以参考<a href="http://tangjiong.me/2016/09/18/spark-on-yarn-md/" target="_blank" rel="external">Spark On YARN集群环境搭建.md</a></p>
+<h1 id="2-Java安装与配置"><a href="#2-Java安装与配置" class="headerlink" title="2.Java安装与配置"></a>2.Java安装与配置</h1><p>过程略。注意cassandra 3.0以上的版本需要JDK1.8及以上版本。</p>
+<h1 id="3-Cassandra安装与配置"><a href="#3-Cassandra安装与配置" class="headerlink" title="3.Cassandra安装与配置"></a>3.Cassandra安装与配置</h1><h2 id="3-1下载解压cassandra"><a href="#3-1下载解压cassandra" class="headerlink" title="3.1下载解压cassandra"></a>3.1下载解压cassandra</h2><pre><code class="shell">tar -zvxf apache-cassandra-3.7-bin.tar.gz
+</code></pre>
+<h2 id="3-2修改配置文件"><a href="#3-2修改配置文件" class="headerlink" title="3.2修改配置文件"></a>3.2修改配置文件</h2><p>主要的配置文件为<code>cassandra.yaml</code>、<code>jvm.options</code>和<code>cassandra-env.sh</code></p>
+<ul>
+<li><code>cd /data2/cassandra/apache-cassandra-3.7/conf</code>修改<code>cassandra.yaml</code><br>```shell<h1 id="按文件顺序修改的地方"><a href="#按文件顺序修改的地方" class="headerlink" title="按文件顺序修改的地方"></a>按文件顺序修改的地方</h1><h1 id="！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析"><a href="#！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析" class="headerlink" title="！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析"></a>！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析</h1>data_file_directories:</li>
+</ul>
+<ul>
+<li>/data2/cassandra/apache-cassandra-3.7/data/data</li>
+</ul>
+<p>commitlog_directory: /data2/cassandra/apache-cassandra-3.7/data/commitlog</p>
+<p>saved_caches_directory: /data2/cassandra/apache-cassandra-3.7/data/saved_caches</p>
+<h1 id="网上的教程大多都将三个路径配置为-var-lib-cassandra-data-var-lib-cassandra-commitlog-var-lib-cassandra-saved-caches"><a href="#网上的教程大多都将三个路径配置为-var-lib-cassandra-data-var-lib-cassandra-commitlog-var-lib-cassandra-saved-caches" class="headerlink" title="网上的教程大多都将三个路径配置为/var/lib/cassandra/data /var/lib/cassandra/commitlog /var/lib/cassandra/saved_caches"></a>网上的教程大多都将三个路径配置为/var/lib/cassandra/data /var/lib/cassandra/commitlog /var/lib/cassandra/saved_caches</h1><h1 id="这里为了方便后续分发整个文件夹，直接放到-CASSANDRA-HOME目录下了，这也是默认的配置"><a href="#这里为了方便后续分发整个文件夹，直接放到-CASSANDRA-HOME目录下了，这也是默认的配置" class="headerlink" title="这里为了方便后续分发整个文件夹，直接放到$CASSANDRA_HOME目录下了，这也是默认的配置"></a>这里为了方便后续分发整个文件夹，直接放到$CASSANDRA_HOME目录下了，这也是默认的配置</h1><p>seed_provider:</p>
+<ul>
+<li>class_name: org.apache.cassandra.locator.SimpleSeedProvider<br>parameters:<pre><code>- seeds: &quot;192.168.0.1&quot;
+</code></pre><h1 id="集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同"><a href="#集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同" class="headerlink" title="集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同"></a>集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同</h1></li>
+</ul>
+<p>#listen_address: localhost<br>listen_address:192.168.0.1</p>
+<p>#rpc_address: localhost<br>rpc_address:192.168.0.1</p>
+<pre><code>
+* 修改```jvm.options
+</code></pre><p>Cassandra默认启动时会创建heap_size为1/4内存的JVM，我们机器的内存32G，也就是会启动8G左右的heap，而JVM默认的heap是256m，所以在不修改jvm.options的情况下会报invalid heap size的错误。解决办法是调小cassandra需要的heap_size或适当调大jvm的heap_size。因为我们这里是服务器环境，所以我们将jvm的heap_size调到了4g，同时因为还有spark需要内存，所以将cassandra需要的heap_size调小到2g。</p>
+<p><code>vim jvm.options</code>找到<code>HEAP SETTINGS</code>部分</p>
+<pre><code class="shell">#################
+# HEAP SETTINGS #
+#################
+
+# Heap size is automatically calculated by cassandra-env based on this
+# formula: max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
+# That is:
+# - calculate 1/2 ram and cap to 1024MB
+# - calculate 1/4 ram and cap to 8192MB
+# - pick the max
+#
+# For production use you may wish to adjust this for your environment.
+# If that&#39;s the case, uncomment the -Xmx and Xms options below to override the
+# automatic calculation of JVM heap memory.
+#
+# It is recommended to set min (-Xms) and max (-Xmx) heap sizes to
+# the same value to avoid stop-the-world GC pauses during resize, and
+# so that we can lock the heap in memory on startup to prevent any
+# of it from being swapped out.
+-Xms2048m
+-Xmx2048m
+</code></pre>
+<p>比较坑的是，这里修改之后只对<code>bin/cassandra</code>命令有效，<code>bin/nodetool status</code>时，还是报invalid heap size的错误，所以还得修改<code>cassandra-env.sh</code></p>
+<pre><code>MAX_HEAP_SIZE=&quot;2G&quot;
+HEAP_NEWSIZE=&quot;800M&quot;
+# 这里脚本好像写的是默认没设置的情况下就直接读jvm.options里的配置
+# 搞不懂为什么还要再配置一次
+</code></pre><ul>
+<li>在<code>/etc/profile</code>加上一行JVM_OPTS的配置<pre><code class="shell">export JAVA_OPTS=&quot;-server -Xms4096m -Xmx4096m&quot;
+</code></pre>
+</li>
+</ul>
+<h2 id="3-3启动cassandra"><a href="#3-3启动cassandra" class="headerlink" title="3.3启动cassandra"></a>3.3启动cassandra</h2><pre><code class="shell">bin/cassandra -Rf
+# cassandra不推荐使用root用户启动，所以这里坚持要用root用户的话，需要加上R参数
+# -f表示以前端模式运行，也就是会交互式的输出启动过程中的日志
+# 不过发现不加-f参数也会输出日志信息，到日志不再增加的时候Ctrl + c退出日志窗口，cassandra会继续在后台
+</code></pre>
+<h2 id="3-4查看节点运行状态"><a href="#3-4查看节点运行状态" class="headerlink" title="3.4查看节点运行状态"></a>3.4查看节点运行状态</h2><pre><code class="shell">bin/nodetool status
+
+#输出
+Datacenter: datacenter1
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address         Load       Tokens       Owns (effective)  Host ID                               Rack
+UN  192.168.0.1  272.23 KiB  256          100.0%             c2db75d1-cf12-4bd8-a588-681c4baea389  rack1
+</code></pre>
+<h2 id="3-5分发cassandra文件夹到其他节点并做同样的配置"><a href="#3-5分发cassandra文件夹到其他节点并做同样的配置" class="headerlink" title="3.5分发cassandra文件夹到其他节点并做同样的配置"></a>3.5分发cassandra文件夹到其他节点并做同样的配置</h2><ul>
+<li><p>使用scp将配置好的cassandra文件夹整个分发到另外两个节点</p>
+<pre><code class="shell"># 在data2目录下
+scp -r cassandra root@slave1:/data2
+scp -r cassandra root@slave2:/data2
+</code></pre>
+<p>如果出现文件占用不能复制，可以先将当前节点停掉</p>
+<pre><code class="shell">user=`whoami`
+pgrep -u $user -f cassandra | xargs kill -9
+</code></pre>
+</li>
+<li><p>将slave节点下cassandra.yaml中listen_address和rpc_address修改为相应slave节点的IP，seeds不用变，注意在slave节点/etc/profile中添加JAVA_OPTS</p>
+</li>
+<li><p>!!! 注意清理掉slave节点里cassandra/data目录下的内容，因为master上启动过一次会在data目录下保存节点的host_id信息，导致slave节点搞错自己的host_id</p>
+</li>
+<li><p>配置完成后，可以<code>bin/cassandra -R</code>启动节点，因为cassandra没有中心节点负责启动slave节点，所以每个节点都需要自己手动启动</p>
+<h2 id="3-6验证集群状态"><a href="#3-6验证集群状态" class="headerlink" title="3.6验证集群状态"></a>3.6验证集群状态</h2><p>```shell<br>bin/nodetool status</p>
+</li>
+</ul>
+<p>#输出</p>
+<h1 id="Datacenter-datacenter1"><a href="#Datacenter-datacenter1" class="headerlink" title="Datacenter: datacenter1"></a>Datacenter: datacenter1</h1><p>Status=Up/Down<br>|/ State=Normal/Leaving/Joining/Moving<br>–  Address         Load       Tokens       Owns (effective)  Host ID                               Rack<br>UN  192.168.0.3  190.4 KiB  256          66.6%             ae4d11d9-0ceb-49d0-a7cb-88c3cfc918e4  rack1<br>UN  192.168.0.2  280.26 KiB  256          68.5%             e3a29787-8311-44ca-92dd-3f5decdad0f5  rack1<br>UN  192.168.0.1  272.23 KiB  256          64.9%             c2db75d1-cf12-4bd8-a588-681c4baea389  rack1<br>```</p>
+
+	</div>
+	<div class="meta split">
+		
+			<span>本文总阅读量 <span id="busuanzi_value_page_pv"></span> 次</span>
+		
+		<time class="post-date" datetime="2016-09-20T14:43:40.000Z" itemprop="datePublished">2016-09-20</time>
+	</div>
+</article>
+
+<!--评论-->
+
+	
+<div class="ds-thread" data-thread-key="cassandra-setup" data-title="Cassandra集群环境搭建" data-url="http://tangjiong.github.io/2016/09/20/cassandra-setup/"></div>
+<script type="text/javascript">
+
+var duoshuoQuery = {short_name:"yumemor"};
+	(function() {
+		var ds = document.createElement('script');
+		ds.type = 'text/javascript';ds.async = true;
+		ds.src = (document.location.protocol == 'https:' ? 'https:' : 'http:') + '//static.duoshuo.com/embed.js';
+		ds.charset = 'UTF-8';
+		(document.getElementsByTagName('head')[0]
+		 || document.getElementsByTagName('body')[0]).appendChild(ds);
+	})();
+</script>
+
+
+  
+</div>
+
+
+  <svg id="bigTriangleColor" width="100%" height="40" viewBox="0 0 100 102" preserveAspectRatio="none">
+    <path d="M0 0 L50 100 L100 0 Z"></path>
+  </svg>
+
+  
+
+
+  <div class="wrapper"></div>
+
+
+
+
+
+<div class="fat-footer">
+	<div class="wrapper">
+		<div class="layout layout--center">
+			<div class="layout__item palm-mb">
+				<div class="media">
+					<img class="headimg" src='http://7xid5q.com1.z0.glb.clouddn.com/avatar.jpeg' alt='唐炯'>
+					<div class="media__body">
+						<h4>TangJiong&#39;s Note</h4>
+						<p class='site-description'>个人博客，编程笔记，一半是代码，一半是生活</p>
+					</div>
+				</div>
+				<div class="author-contact">
+					<ul>
+						
+							
+							<li>
+				        		<a href="http://weibo.com/u/1882741134" target="_blank">
+				        			
+				        				<i class="iconfont icon-weibo"></i>
+				        			
+				        		</a>
+				        	</li>
+						
+							
+							<li>
+				        		<a href="https://github.com/TangJiong" target="_blank">
+				        			
+				        				<i class="iconfont icon-github"></i>
+				        			
+				        		</a>
+				        	</li>
+						
+							
+							<li>
+				        		<a href="https://www.zhihu.com/people/tang-jiong-98" target="_blank">
+				        			
+										<i class="iconfont icon-zhihu"></i>
+				        			
+				        		</a>
+				        	</li>
+						
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<footer class="footer" role="contentinfo">
+	<div class="wrapper wrapper--wide split split--responsive">
+		
+			<span>本站总访问量 <span id="busuanzi_value_site_pv"></span> 次, 访客数 <span id="busuanzi_value_site_uv"></span> 人次</span>
+		
+		<span>Theme by <a href="http://github.com/yumemor">Yumemor</a>. Powered by <a href="http://hexo.io">Hexo</a></span>
+	</div>
+</footer>
+
+	<!-－这里导入了 lib.js 里面涵盖了 jQuery 等框架 所以注释掉-->
+	<!--<script src="http://lib.sinaapp.com/js/jquery/2.0/jquery.min.js"></script>-->
+	<script src="/js/lib.js"></script>
+	<script src="/js/google-code-prettify/prettify.js"></script>
+	<script src="/js/module.js"></script>
+	<script src="/js/script.js"></script>
+	
+		<script async src="http://dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+	
+	<script type='text/javascript'>
+		//代码高亮
+		$(document).ready(function(){
+	 		$('pre').addClass('prettyprint linenums').attr('style', 'overflow:auto;');
+   			prettyPrint();
+		});
+	</script>
+	</body>
+</html>
