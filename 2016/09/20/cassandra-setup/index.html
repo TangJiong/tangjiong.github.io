@@ -96,23 +96,35 @@
 </code></pre>
 <h2 id="3-2修改配置文件"><a href="#3-2修改配置文件" class="headerlink" title="3.2修改配置文件"></a>3.2修改配置文件</h2><p>主要的配置文件为<code>cassandra.yaml</code>、<code>jvm.options</code>和<code>cassandra-env.sh</code></p>
 <ul>
-<li><code>cd /data2/cassandra/apache-cassandra-3.7/conf</code>修改<code>cassandra.yaml</code><br>```shell<h1 id="按文件顺序修改的地方"><a href="#按文件顺序修改的地方" class="headerlink" title="按文件顺序修改的地方"></a>按文件顺序修改的地方</h1><h1 id="！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析"><a href="#！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析" class="headerlink" title="！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析"></a>！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析</h1>data_file_directories:</li>
+<li><code>cd /data2/cassandra/apache-cassandra-3.7/conf</code>修改<code>cassandra.yaml</code></li>
 </ul>
+<pre><code class="shell"># 按文件顺序修改的地方
+# ！！！注意冒号后面一定要有一个空格，这是yaml的格式要求，不然无法解析
+data_file_directories:
+- /data2/cassandra/apache-cassandra-3.7/data/data
+
+commitlog_directory: /data2/cassandra/apache-cassandra-3.7/data/commitlog
+
+saved_caches_directory: /data2/cassandra/apache-cassandra-3.7/data/saved_caches
+
+# 网上的教程大多都将三个路径配置为/var/lib/cassandra/data /var/lib/cassandra/commitlog /var/lib/cassandra/saved_caches
+# 这里为了方便后续分发整个文件夹，直接放到$CASSANDRA_HOME目录下了，这也是默认的配置
+
+seed_provider:
+- class_name: org.apache.cassandra.locator.SimpleSeedProvider
+  parameters:
+      - seeds: &quot;192.168.0.1&quot;
+# 集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同
+
+#listen_address: localhost
+listen_address:192.168.0.1
+
+#rpc_address: localhost
+rpc_address:192.168.0.1
+</code></pre>
 <ul>
-<li>/data2/cassandra/apache-cassandra-3.7/data/data</li>
+<li>修改<code>jvm.options</code><br>Cassandra默认启动时会创建heap_size为1/4内存的JVM，我们机器的内存32G，也就是会启动8G左右的heap，而JVM默认的heap是256m，所以在不修改jvm.options的情况下会报invalid heap size的错误。解决办法是调小cassandra需要的heap_size或适当调大jvm的heap_size。因为我们这里是服务器环境，所以我们将jvm的heap_size调到了4g，同时因为还有spark需要内存，所以将cassandra需要的heap_size调小到2g。</li>
 </ul>
-<p>commitlog_directory: /data2/cassandra/apache-cassandra-3.7/data/commitlog</p>
-<p>saved_caches_directory: /data2/cassandra/apache-cassandra-3.7/data/saved_caches</p>
-<h1 id="网上的教程大多都将三个路径配置为-var-lib-cassandra-data-var-lib-cassandra-commitlog-var-lib-cassandra-saved-caches"><a href="#网上的教程大多都将三个路径配置为-var-lib-cassandra-data-var-lib-cassandra-commitlog-var-lib-cassandra-saved-caches" class="headerlink" title="网上的教程大多都将三个路径配置为/var/lib/cassandra/data /var/lib/cassandra/commitlog /var/lib/cassandra/saved_caches"></a>网上的教程大多都将三个路径配置为/var/lib/cassandra/data /var/lib/cassandra/commitlog /var/lib/cassandra/saved_caches</h1><h1 id="这里为了方便后续分发整个文件夹，直接放到-CASSANDRA-HOME目录下了，这也是默认的配置"><a href="#这里为了方便后续分发整个文件夹，直接放到-CASSANDRA-HOME目录下了，这也是默认的配置" class="headerlink" title="这里为了方便后续分发整个文件夹，直接放到$CASSANDRA_HOME目录下了，这也是默认的配置"></a>这里为了方便后续分发整个文件夹，直接放到$CASSANDRA_HOME目录下了，这也是默认的配置</h1><p>seed_provider:</p>
-<ul>
-<li>class_name: org.apache.cassandra.locator.SimpleSeedProvider<br>parameters:<pre><code>- seeds: &quot;192.168.0.1&quot;
-</code></pre><h1 id="集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同"><a href="#集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同" class="headerlink" title="集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同"></a>集群环境下这里一定要设置本机的IP地址，不能使用localhost，下同</h1></li>
-</ul>
-<p>#listen_address: localhost<br>listen_address:192.168.0.1</p>
-<p>#rpc_address: localhost<br>rpc_address:192.168.0.1</p>
-<pre><code>
-* 修改```jvm.options
-</code></pre><p>Cassandra默认启动时会创建heap_size为1/4内存的JVM，我们机器的内存32G，也就是会启动8G左右的heap，而JVM默认的heap是256m，所以在不修改jvm.options的情况下会报invalid heap size的错误。解决办法是调小cassandra需要的heap_size或适当调大jvm的heap_size。因为我们这里是服务器环境，所以我们将jvm的heap_size调到了4g，同时因为还有spark需要内存，所以将cassandra需要的heap_size调小到2g。</p>
 <p><code>vim jvm.options</code>找到<code>HEAP SETTINGS</code>部分</p>
 <pre><code class="shell">#################
 # HEAP SETTINGS #
@@ -142,10 +154,10 @@ HEAP_NEWSIZE=&quot;800M&quot;
 # 这里脚本好像写的是默认没设置的情况下就直接读jvm.options里的配置
 # 搞不懂为什么还要再配置一次
 </code></pre><ul>
-<li>在<code>/etc/profile</code>加上一行JVM_OPTS的配置<pre><code class="shell">export JAVA_OPTS=&quot;-server -Xms4096m -Xmx4096m&quot;
-</code></pre>
-</li>
+<li>在<code>/etc/profile</code>加上一行JVM_OPTS的配置</li>
 </ul>
+<pre><code class="shell">export JAVA_OPTS=&quot;-server -Xms4096m -Xmx4096m&quot;
+</code></pre>
 <h2 id="3-3启动cassandra"><a href="#3-3启动cassandra" class="headerlink" title="3.3启动cassandra"></a>3.3启动cassandra</h2><pre><code class="shell">bin/cassandra -Rf
 # cassandra不推荐使用root用户启动，所以这里坚持要用root用户的话，需要加上R参数
 # -f表示以前端模式运行，也就是会交互式的输出启动过程中的日志
@@ -162,7 +174,8 @@ Status=Up/Down
 UN  192.168.0.1  272.23 KiB  256          100.0%             c2db75d1-cf12-4bd8-a588-681c4baea389  rack1
 </code></pre>
 <h2 id="3-5分发cassandra文件夹到其他节点并做同样的配置"><a href="#3-5分发cassandra文件夹到其他节点并做同样的配置" class="headerlink" title="3.5分发cassandra文件夹到其他节点并做同样的配置"></a>3.5分发cassandra文件夹到其他节点并做同样的配置</h2><ul>
-<li><p>使用scp将配置好的cassandra文件夹整个分发到另外两个节点</p>
+<li>使用scp将配置好的cassandra文件夹整个分发到另外两个节点</li>
+</ul>
 <pre><code class="shell"># 在data2目录下
 scp -r cassandra root@slave1:/data2
 scp -r cassandra root@slave2:/data2
@@ -171,17 +184,26 @@ scp -r cassandra root@slave2:/data2
 <pre><code class="shell">user=`whoami`
 pgrep -u $user -f cassandra | xargs kill -9
 </code></pre>
-</li>
+<ul>
 <li><p>将slave节点下cassandra.yaml中listen_address和rpc_address修改为相应slave节点的IP，seeds不用变，注意在slave节点/etc/profile中添加JAVA_OPTS</p>
 </li>
 <li><p>!!! 注意清理掉slave节点里cassandra/data目录下的内容，因为master上启动过一次会在data目录下保存节点的host_id信息，导致slave节点搞错自己的host_id</p>
 </li>
 <li><p>配置完成后，可以<code>bin/cassandra -R</code>启动节点，因为cassandra没有中心节点负责启动slave节点，所以每个节点都需要自己手动启动</p>
-<h2 id="3-6验证集群状态"><a href="#3-6验证集群状态" class="headerlink" title="3.6验证集群状态"></a>3.6验证集群状态</h2><p>```shell<br>bin/nodetool status</p>
 </li>
 </ul>
-<p>#输出</p>
-<h1 id="Datacenter-datacenter1"><a href="#Datacenter-datacenter1" class="headerlink" title="Datacenter: datacenter1"></a>Datacenter: datacenter1</h1><p>Status=Up/Down<br>|/ State=Normal/Leaving/Joining/Moving<br>–  Address         Load       Tokens       Owns (effective)  Host ID                               Rack<br>UN  192.168.0.3  190.4 KiB  256          66.6%             ae4d11d9-0ceb-49d0-a7cb-88c3cfc918e4  rack1<br>UN  192.168.0.2  280.26 KiB  256          68.5%             e3a29787-8311-44ca-92dd-3f5decdad0f5  rack1<br>UN  192.168.0.1  272.23 KiB  256          64.9%             c2db75d1-cf12-4bd8-a588-681c4baea389  rack1<br>```</p>
+<h2 id="3-6验证集群状态"><a href="#3-6验证集群状态" class="headerlink" title="3.6验证集群状态"></a>3.6验证集群状态</h2><pre><code class="shell">bin/nodetool status
+
+#输出
+Datacenter: datacenter1
+=======================
+Status=Up/Down
+|/ State=Normal/Leaving/Joining/Moving
+--  Address         Load       Tokens       Owns (effective)  Host ID                               Rack
+UN  192.168.0.3  190.4 KiB  256          66.6%             ae4d11d9-0ceb-49d0-a7cb-88c3cfc918e4  rack1
+UN  192.168.0.2  280.26 KiB  256          68.5%             e3a29787-8311-44ca-92dd-3f5decdad0f5  rack1
+UN  192.168.0.1  272.23 KiB  256          64.9%             c2db75d1-cf12-4bd8-a588-681c4baea389  rack1
+</code></pre>
 
 	</div>
 	<div class="meta split">
